@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Analytics - QuickPoll{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Overview Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Total Polls</h3>
+            <p class="text-3xl font-bold text-primary mt-2" id="total-polls">-</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Total Votes</h3>
+            <p class="text-3xl font-bold text-primary mt-2" id="total-votes">-</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Active Polls</h3>
+            <p class="text-3xl font-bold text-primary mt-2" id="active-polls">-</p>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Votes Distribution</h3>
+            <canvas id="votes-chart" height="300"></canvas>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Poll Activity Timeline</h3>
+            <canvas id="timeline-chart" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Detailed Stats Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Poll Statistics</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead>
+                    <tr class="border-b dark:border-gray-700">
+                        <th class="text-left py-3 px-4 text-gray-600 dark:text-gray-300">Poll</th>
+                        <th class="text-left py-3 px-4 text-gray-600 dark:text-gray-300">Total Votes</th>
+                        <th class="text-left py-3 px-4 text-gray-600 dark:text-gray-300">Choices</th>
+                        <th class="text-left py-3 px-4 text-gray-600 dark:text-gray-300">Created</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-table">
+                    <!-- Stats will be loaded here dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function loadAnalytics() {
+    $.get('/api/polls/analytics/', function(data) {
+        // Update overview cards
+        $('#total-polls').text(data.total_polls);
+        $('#total-votes').text(data.total_votes);
+        $('#active-polls').text(data.active_polls);
+
+        // Update votes distribution chart
+        const votesCtx = document.getElementById('votes-chart').getContext('2d');
+        new Chart(votesCtx, {
+            type: 'pie',
+            data: {
+                labels: data.polls.map(p => p.question),
+                datasets: [{
+                    data: data.polls.map(p => p.total_votes || 0),
+                    backgroundColor: [
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(239, 68, 68, 0.8)',
+                        'rgba(245, 158, 11, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Update timeline chart
+        const timelineCtx = document.getElementById('timeline-chart').getContext('2d');
+        new Chart(timelineCtx, {
+            type: 'line',
+            data: {
+                labels: data.polls.map(p => new Date(p.pub_date).toLocaleDateString()),
+                datasets: [{
+                    label: 'Votes',
+                    data: data.polls.map(p => p.total_votes || 0),
+                    borderColor: 'rgb(59, 130, 246)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Update stats table
+        const statsTable = $('#stats-table');
+        statsTable.empty();
+        data.polls.forEach(poll => {
+            const row = `
+                <tr class="border-b dark:border-gray-700">
+                    <td class="py-3 px-4 text-gray-800 dark:text-gray-200">${poll.question}</td>
+                    <td class="py-3 px-4 text-gray-600 dark:text-gray-400">${poll.total_votes || 0}</td>
+                    <td class="py-3 px-4 text-gray-600 dark:text-gray-400">${poll.choice_count}</td>
+                    <td class="py-3 px-4 text-gray-600 dark:text-gray-400">${new Date(poll.pub_date).toLocaleString()}</td>
+                </tr>
+            `;
+            statsTable.append(row);
+        });
+    });
+}
+
+$(document).ready(function() {
+    loadAnalytics();
+    // Refresh analytics every 30 seconds
+    setInterval(loadAnalytics, 30000);
+});
+</script>
+{% endblock %} 
